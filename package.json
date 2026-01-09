@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",   <--- ASTA E MODIFICAREA (era "tsc -b && vite build")
+    "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
-},
+  },
   "overrides": {
     "react-canvas-draw": {
       "react": "^18.0.0",
