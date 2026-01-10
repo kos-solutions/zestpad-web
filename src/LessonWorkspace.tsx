@@ -12,7 +12,7 @@ export function LessonWorkspace() {
   const [lesson, setLesson] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // 1. Încărcăm lecția (și desenul existent)
+  // 1. Încărcăm lecția (Backend-ul acum returnează și { topic: { background: ... } })
   useEffect(() => {
     apiClient.get(`/lessons/${lessonId}`)
       .then(res => setLesson(res.data))
@@ -43,9 +43,15 @@ export function LessonWorkspace() {
         </button>
         <div className="text-center">
           <h1 className="text-xl font-bold">{lesson.title}</h1>
-          <span className="text-xs uppercase bg-gray-300 px-2 py-1 rounded text-gray-700">
-            {lesson.type === 'theory' ? 'Predare la Tablă' : 'Temă Individuală'}
-          </span>
+          <div className="flex flex-col items-center">
+             <span className="text-xs uppercase bg-gray-300 px-2 py-1 rounded text-gray-700 mb-1">
+               {lesson.type === 'theory' ? 'Predare la Tablă' : 'Temă Individuală'}
+             </span>
+             {/* Arătăm discret și tipul de hârtie folosit */}
+             <span className="text-[10px] text-gray-400">
+               Hârtie: {lesson.topic?.background || 'Standard'}
+             </span>
+          </div>
         </div>
         <div className="w-16"></div> {/* Spacer */}
       </div>
@@ -54,6 +60,9 @@ export function LessonWorkspace() {
       <ZestCanvas 
         initialData={lesson.content} // Încărcăm ce s-a desenat înainte
         onSave={saveContent}         // Când apeși Save, se duce la server
+        
+        // ✨ AICI SE ÎNTÂMPLĂ MAGIA: Trimitem liniatura din folder către tablă
+        backgroundPattern={lesson.topic?.background || 'white'} 
       />
       
       <p className="mt-4 text-gray-500 text-xs">

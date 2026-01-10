@@ -4,35 +4,39 @@ import CanvasDraw from 'react-canvas-draw';
 
 interface ZestCanvasProps {
   initialData?: string; // Desenul vechi (dacă există)
-  readOnly?: boolean;   // Dacă e true, nu putem desena (doar privim)
+  readOnly?: boolean;   // Dacă e true, nu putem desena
   onSave?: (data: string) => void; // Funcția care trimite datele "sus"
+  backgroundPattern?: string; // NOU: Primim tipul de liniatură (ex: "paper-math")
 }
 
-export function ZestCanvas({ initialData, readOnly = false, onSave }: ZestCanvasProps) {
+export function ZestCanvas({ 
+  initialData, 
+  readOnly = false, 
+  onSave, 
+  backgroundPattern = 'white' // Default alb
+}: ZestCanvasProps) {
+  
   const canvasRef = useRef<any>(null);
   const [brushColor, setBrushColor] = useState("#000000");
   const [brushRadius, setBrushRadius] = useState(2);
 
   // Când primim date (desenul salvat), le încărcăm pe tablă
   useEffect(() => {
-    // Folosim un mic delay pentru a lăsa React să termine randarea
     const timer = setTimeout(() => {
       if (canvasRef.current && initialData && initialData !== "" && initialData !== "{}") {
         try {
-          // Încărcăm datele DOAR dacă avem ceva valid
           canvasRef.current.loadSaveData(initialData, true);
         } catch (err) {
           console.error("Eroare la desenarea datelor:", err);
         }
       }
-    }, 100); // 100ms întârziere este insesizabilă pt ochi, dar imensă pt procesor
+    }, 100);
 
     return () => clearTimeout(timer);
   }, [initialData]);
 
   const handleSave = () => {
     if (canvasRef.current && onSave) {
-      // Transformăm desenul în TEXT (JSON string)
       const drawingData = canvasRef.current.getSaveData();
       onSave(drawingData);
     }
@@ -85,17 +89,25 @@ export function ZestCanvas({ initialData, readOnly = false, onSave }: ZestCanvas
         </div>
       )}
 
-      {/* FOAIA PROPRIU-ZISĂ */}
-      <div className="border shadow-2xl bg-white cursor-crosshair overflow-hidden rounded-sm">
+      {/* FOAIA PROPRIU-ZISĂ 
+          Aici aplicăm clasa CSS dinamică (backgroundPattern) pe container.
+      */}
+      <div 
+        className={`border shadow-2xl overflow-hidden rounded-sm cursor-crosshair ${backgroundPattern === 'white' ? 'bg-white' : backgroundPattern}`}
+      >
         <CanvasDraw
           ref={canvasRef}
           brushColor={brushColor}
           brushRadius={brushRadius}
-          lazyRadius={0} // 0 = răspuns instant la mouse (fără întârziere "artistică")
+          lazyRadius={0}
           canvasWidth={800}
           canvasHeight={600}
           disabled={readOnly}
-          gridColor="#e5e7eb" // Pătrățele de matematică discrete
+          // IMPORTANT: Facem fundalul librăriei transparent ca să se vadă CSS-ul nostru de dedesubt
+          backgroundColor="transparent"
+          // IMPORTANT: Ascundem grila default a librăriei dacă avem o liniatură specială selectată
+          hideGrid={backgroundPattern !== 'white'} 
+          gridColor="#e5e7eb"
         />
       </div>
     </div>
