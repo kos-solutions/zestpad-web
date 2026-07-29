@@ -1,0 +1,183 @@
+// ZestPad — schema relationala
+// Ierarhie: Profesor -> Clasa -> Topic (folder) -> Lesson -> Submission (per elev)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum LessonType {
+  THEORY    // material de predare, scris de profesor
+  HOMEWORK  // tema: fiecare elev primeste propria copie
+}
+
+enum SubmissionStatus {
+  NOT_STARTED
+  DRAFT
+  SUBMITTED
+  GRADED
+}
+
+enum Background {
+  WHITE
+  MATH
+  DICTANDO
+  MUSIC
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(STUDENT)
+  /// Cod pe care elevul il da parintelui ca sa se lege de contul lui.
+  linkCode     String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Profesor
+  taughtClasses Class[] @relation("ClassTeacher")
+
+  // Elev
+  enrollments Enrollment[]
+  submissions Submission[] @relation("SubmissionStudent")
+  notebooks   Notebook[]
+
+  // Parinte <-> copil
+  childLinks  ParentChild[] @relation("ParentSide")
+  parentLinks ParentChild[] @relation("ChildSide")
+
+  // Profesor care a corectat
+  gradedSubmissions Submission[] @relation("SubmissionGrader")
+
+  @@index([role])
+}
+
+/// Legatura parinte-copil. Se creeaza cu un cod generat de elev/scoala.
+model ParentChild {
+  id        String   @id @default(cuid())
+  parent    User     @relation("ParentSide", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId  String
+  child     User     @relation("ChildSide", fields: [childId], references: [id], onDelete: Cascade)
+  childId   String
+  createdAt DateTime @default(now())
+
+  @@unique([parentId, childId])
+  @@index([childId])
+}
+
+model Class {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique // cod de inscriere, 6 caractere
+  teacher   User     @relation("ClassTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  topics      Topic[]
+  enrollments Enrollment[]
+
+  @@index([teacherId])
+}
+
+model Enrollment {
+  id        String   @id @default(cuid())
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId   String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  createdAt DateTime @default(now())
+
+  @@unique([classId, studentId])
+  @@index([studentId])
+}
+
+model Topic {
+  id         String     @id @default(cuid())
+  title      String
+  background Background @default(WHITE)
+  position   Int        @default(0)
+  class      Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId    String
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  lessons Lesson[]
+
+  @@index([classId])
+}
+
+model Lesson {
+  id        String     @id @default(cuid())
+  title     String
+  type      LessonType @default(THEORY)
+  /// Continut scris de profesor (JSON de trasee). Pentru HOMEWORK = enuntul.
+  content   String     @default("")
+  dueAt     DateTime?
+  published Boolean    @default(false)
+  position  Int        @default(0)
+  topic     Topic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topicId   String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  submissions Submission[]
+
+  @@index([topicId])
+}
+
+/// Lucrarea unui elev la o lectie de tip HOMEWORK.
+model Submission {
+  id        String           @id @default(cuid())
+  lesson    Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId  String
+  student   User             @relation("SubmissionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  status    SubmissionStatus @default(NOT_STARTED)
+  /// Ce a scris elevul (JSON de trasee)
+  content   String           @default("")
+  /// Corectura profesorului, desenata peste (strat separat)
+  feedback  String           @default("")
+  /// Nota / calificativ, text liber ca sa mearga si cu calificative
+  grade     String?
+  comment   String?
+  submittedAt DateTime?
+  gradedAt    DateTime?
+  grader      User?    @relation("SubmissionGrader", fields: [graderId], references: [id], onDelete: SetNull)
+  graderId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([lessonId, studentId])
+  @@index([studentId])
+  @@index([status])
+}
+
+/// Caiet personal al elevului. Nu e vizibil profesorului.
+/// Parintele il vede doar daca elevul il marcheaza ca vizibil.
+model Notebook {
+  id          String     @id @default(cuid())
+  title       String
+  background  Background @default(WHITE)
+  content     String     @default("")
+  visibleToParent Boolean @default(false)
+  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId     String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([ownerId])
+}

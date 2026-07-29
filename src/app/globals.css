@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body { @apply bg-ink-50 text-ink-900 antialiased; }
+  /* In kiosk mode nu vrem selectie accidentala de text cu stylus-ul */
+  .no-select { -webkit-user-select: none; user-select: none; }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold
+           transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary { @apply btn bg-zest-600 text-white hover:bg-zest-700 active:bg-zest-800; }
+  .btn-secondary { @apply btn border border-ink-200 bg-white text-ink-700 hover:bg-ink-50; }
+  .btn-ghost { @apply btn text-ink-600 hover:bg-ink-100; }
+  .btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
+
+  .input {
+    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-ink-900
+           outline-none transition placeholder:text-ink-400
+           focus:border-zest-500 focus:ring-2 focus:ring-zest-100;
+  }
+  .label { @apply mb-1.5 block text-sm font-medium text-ink-700; }
+  .card { @apply rounded-xl border border-ink-200 bg-white shadow-sm; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium; }
+}
