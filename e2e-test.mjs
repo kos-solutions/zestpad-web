@@ -247,6 +247,71 @@ check('alt profesor NU poate adauga lectii', r.status === 403, `primit ${r.statu
 r = await teacher2('POST', `/api/submissions/${subId}/grade`, { grade: '1' });
 check('alt profesor NU poate nota', r.status === 403, `primit ${r.status}`);
 
+
+console.log('\n=== 10. Mod live si notite ===');
+// profesorul creeaza o lectie de teorie
+r = await teacher('POST', '/api/lessons', { topicId, title: 'Lectie live', type: 'THEORY' });
+const liveLessonId = r.data.lesson?.id;
+check('lectie de teorie creata', r.status === 201);
+
+r = await student('GET', `/api/lessons/${liveLessonId}/version`);
+check('elevul NU vede lectia nepublicata', r.status === 404, `primit ${r.status}`);
+
+r = await student('POST', `/api/lessons/${liveLessonId}/live`, { live: true });
+check('elevul NU poate porni predarea', r.status === 403, `primit ${r.status}`);
+
+r = await teacher('POST', `/api/lessons/${liveLessonId}/live`, { live: true });
+check('profesorul porneste predarea', r.status === 200 && r.data.live === true, JSON.stringify(r.data));
+check('pornirea publica automat lectia', r.data.published === true);
+
+r = await student('GET', `/api/lessons/${liveLessonId}/version`);
+check('elevul vede acum starea live', r.status === 200 && r.data.live === true);
+const v1 = r.data.v;
+
+// profesorul scrie
+await teacher('PATCH', `/api/lessons/${liveLessonId}/content`, { content: drawing(7) });
+r = await student('GET', `/api/lessons/${liveLessonId}/version`);
+check('versiunea se schimba cand profesorul scrie', r.data.v !== v1, `${v1} -> ${r.data.v}`);
+
+r = await student('GET', `/api/lessons/${liveLessonId}`);
+check('elevul primeste continutul profesorului',
+  JSON.parse(r.data.lesson.content).strokes.length === 7);
+
+// notitele elevului
+r = await student('GET', `/api/lessons/${liveLessonId}/notes`);
+check('notitele pornesc goale', r.status === 200 && r.data.content === '');
+
+r = await student('PATCH', `/api/lessons/${liveLessonId}/notes`, { content: drawing(5, '#1c1917') });
+check('elevul isi salveaza notitele', r.status === 200);
+
+r = await student('GET', `/api/lessons/${liveLessonId}/notes`);
+check('notitele persista', JSON.parse(r.data.content).strokes.length === 5);
+
+r = await teacher('PATCH', `/api/lessons/${liveLessonId}/content`, { content: drawing(9) });
+r = await student('GET', `/api/lessons/${liveLessonId}`);
+check('notitele elevului NU afecteaza lectia profesorului',
+  JSON.parse(r.data.lesson.content).strokes.length === 9);
+r = await student('GET', `/api/lessons/${liveLessonId}/notes`);
+check('lectia profesorului NU suprascrie notitele elevului',
+  JSON.parse(r.data.content).strokes.length === 5);
+
+// notitele sunt private
+r = await teacher('GET', `/api/lessons/${liveLessonId}/notes`);
+check('profesorul NU poate citi notitele elevului', r.status === 403, `primit ${r.status}`);
+
+r = await student2('GET', `/api/lessons/${liveLessonId}/notes`);
+check('alt elev are notite separate', r.status === 200 && r.data.content === '');
+
+r = await teacher('POST', `/api/lessons/${liveLessonId}/live`, { live: false });
+check('profesorul opreste predarea', r.status === 200 && r.data.live === false);
+
+r = await student('GET', `/api/lessons/${liveLessonId}/version`);
+check('starea live s-a oprit', r.data.live === false);
+
+const anon2 = makeClient();
+r = await anon2('GET', `/api/lessons/${liveLessonId}/version`);
+check('nelogat NU poate interoga versiunea', r.status === 401, `primit ${r.status}`);
+
 console.log(`\n${'='.repeat(50)}`);
 console.log(`REZULTAT: ${pass} trecute, ${fail} esuate`);
 console.log('='.repeat(50));

@@ -31,9 +31,11 @@ interface Props {
   /** Culoarea implicita a instrumentului (rosu pentru corectura profesorului). */
   defaultColor?: string;
   onDirtyChange?: (dirty: boolean) => void;
+  /** Continut suplimentar in bara de instrumente (ex: buton de salvare). */
+  toolbarExtra?: React.ReactNode;
 }
 
-const COLORS = ['#1a1a1a', '#1b70f0', '#dc2626', '#16a34a'];
+const COLORS = ['#1c1917', '#1d4ed8', '#dc2626', '#15803d'];
 const SIZES = [2, 4, 7, 12];
 
 /** Parametri perfect-freehand: dau senzatia de stilou real. */
@@ -90,6 +92,7 @@ export const ZestCanvas = forwardRef<ZestCanvasHandle, Props>(function ZestCanva
   {
     value, underlay, underlayColor, overlay, overlayColor,
     background = 'WHITE', readOnly = false, defaultColor = '#1a1a1a', onDirtyChange,
+    toolbarExtra,
   },
   ref
 ) {
@@ -109,6 +112,26 @@ export const ZestCanvas = forwardRef<ZestCanvasHandle, Props>(function ZestCanva
   /** Semnaleaza cand a fost detectat un stylus real, ca sa activam palm rejection. */
   const [penDetected, setPenDetected] = useState(false);
   const penDetectedRef = useRef(false);
+  /** Modul "doar stylus": ignora complet degetul. Retinut intre sesiuni. */
+  const [penOnly, setPenOnly] = useState(false);
+  const penOnlyRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('zp_pen_only') === '1';
+      setPenOnly(saved);
+      penOnlyRef.current = saved;
+    } catch { /* mod privat */ }
+  }, []);
+
+  const togglePenOnly = useCallback(() => {
+    setPenOnly((v) => {
+      const next = !v;
+      penOnlyRef.current = next;
+      try { localStorage.setItem('zp_pen_only', next ? '1' : '0'); } catch { /* ignoram */ }
+      return next;
+    });
+  }, []);
 
   const underlayRef = useRef<Stroke[]>([]);
   const overlayRef = useRef<Stroke[]>([]);
@@ -166,12 +189,27 @@ export const ZestCanvas = forwardRef<ZestCanvasHandle, Props>(function ZestCanva
   }, []);
 
   /**
-   * Palm rejection: din momentul in care am vazut un stylus, ignoram atingerile
-   * cu degetul/palma. Fara asta, mana sprijinita pe ecran deseneaza.
+   * Palm rejection, in trei trepte:
+   *
+   * 1. Modul "doar stylus" pornit -> orice atingere cu degetul e ignorata.
+   * 2. Am vazut deja un stylus -> ignoram atingerile, e clar ca se scrie cu pixul.
+   * 3. Nu am vazut inca stylus -> ne uitam la aria de contact. Palma sau
+   *    incheietura lasa o amprenta mult mai lata decat un deget, iar
+   *    PointerEvent o raporteaza prin width/height. Asta prinde cazul in care
+   *    elevul sprijina mana inainte sa atinga ecranul cu pixul.
    */
+  const PALM_CONTACT_PX = 42;
+
   const shouldIgnore = useCallback((e: React.PointerEvent) => {
     if (e.pointerType === 'pen') return false;
-    if (e.pointerType === 'touch' && penDetectedRef.current) return true;
+    if (e.pointerType === 'mouse') return false;
+    if (penOnlyRef.current) return true;
+    if (penDetectedRef.current) return true;
+
+    const w = e.nativeEvent.width ?? 0;
+    const h = e.nativeEvent.height ?? 0;
+    if (w > PALM_CONTACT_PX || h > PALM_CONTACT_PX) return true;
+
     return false;
   }, []);
 
@@ -265,7 +303,8 @@ export const ZestCanvas = forwardRef<ZestCanvasHandle, Props>(function ZestCanva
   return (
     <div className="flex w-full flex-col items-center gap-3">
       {!readOnly && (
-        <div className="sticky top-2 z-20 flex flex-wrap items-center justify-center gap-1 rounded-xl border border-ink-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur">
+        <div className="sticky top-2 z-20 flex w-full max-w-[900px] flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-ink-200/70 bg-white/95 px-2.5 py-2 shadow-sm backdrop-blur-md">
+          {/* Culori */}
           <div className="flex items-center gap-1">
             {COLORS.map((c) => (
               <button
@@ -273,70 +312,102 @@ export const ZestCanvas = forwardRef<ZestCanvasHandle, Props>(function ZestCanva
                 type="button"
                 onClick={() => { setColor(c); setErasing(false); }}
                 aria-label={`Culoare ${c}`}
-                className={`h-7 w-7 rounded-full border-2 transition ${
-                  color === c && !erasing ? 'border-ink-800 scale-110' : 'border-transparent'
+                aria-pressed={color === c && !erasing}
+                className={`h-9 w-9 rounded-full border-2 transition active:scale-95 ${
+                  color === c && !erasing
+                    ? 'border-ink-800 shadow-inner ring-2 ring-ink-800/10'
+                    : 'border-white shadow-sm hover:scale-105'
                 }`}
                 style={{ backgroundColor: c }}
               />
             ))}
           </div>
 
-          <div className="mx-1 h-6 w-px bg-ink-200" />
+          <div className="mx-1 h-7 w-px bg-ink-200" />
 
-          <div className="flex items-center gap-1">
-            {SIZES.map((s) => (
+          {/* Grosime */}
+          <div className="flex items-center gap-0.5">
+            {SIZES.map((sz) => (
               <button
-                key={s}
+                key={sz}
                 type="button"
-                onClick={() => setSize(s)}
-                aria-label={`Grosime ${s}`}
-                className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
-                  size === s ? 'bg-ink-100' : 'hover:bg-ink-50'
+                onClick={() => { setSize(sz); setErasing(false); }}
+                aria-label={`Grosime ${sz}`}
+                aria-pressed={size === sz && !erasing}
+                className={`flex h-9 w-9 items-center justify-center rounded-xl transition active:scale-95 ${
+                  size === sz && !erasing ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'
                 }`}
               >
                 <span
-                  className="rounded-full bg-ink-800"
-                  style={{ width: Math.min(s + 2, 14), height: Math.min(s + 2, 14) }}
+                  className="rounded-full bg-current"
+                  style={{ width: Math.min(sz + 3, 16), height: Math.min(sz + 3, 16) }}
                 />
               </button>
             ))}
           </div>
 
-          <div className="mx-1 h-6 w-px bg-ink-200" />
+          <div className="mx-1 h-7 w-px bg-ink-200" />
 
           <button
             type="button"
             onClick={() => setErasing((v) => !v)}
-            className={`rounded-lg px-2.5 py-1.5 text-sm font-medium transition ${
-              erasing ? 'bg-ink-800 text-white' : 'text-ink-600 hover:bg-ink-50'
+            aria-pressed={erasing}
+            className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium transition active:scale-95 ${
+              erasing ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'
             }`}
           >
             Radieră
           </button>
+
           <button
             type="button" onClick={undo} disabled={strokeCount === 0}
-            className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-ink-600 transition hover:bg-ink-50 disabled:opacity-40"
+            className="flex h-9 items-center rounded-xl px-3 text-sm font-medium text-ink-600 transition hover:bg-ink-100 active:scale-95 disabled:opacity-30"
           >
             Înapoi
           </button>
+
           <button
             type="button" onClick={clear} disabled={strokeCount === 0}
-            className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-40"
+            className="flex h-9 items-center rounded-xl px-3 text-sm font-medium text-red-600 transition hover:bg-red-50 active:scale-95 disabled:opacity-30"
           >
             Șterge tot
           </button>
 
-          {penDetected && (
-            <span className="ml-1 rounded-md bg-green-50 px-2 py-1 text-[11px] font-medium text-green-700">
-              Stylus activ · palma ignorată
+          <div className="mx-1 h-7 w-px bg-ink-200" />
+
+          {/* Doar stylus */}
+          <button
+            type="button"
+            onClick={togglePenOnly}
+            aria-pressed={penOnly}
+            title="Ignoră complet atingerile cu degetul"
+            className={`flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium transition active:scale-95 ${
+              penOnly ? 'bg-zest-100 text-zest-800 ring-1 ring-zest-300' : 'text-ink-500 hover:bg-ink-100'
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${penOnly ? 'bg-zest-500' : 'bg-ink-300'}`} />
+            Doar stylus
+          </button>
+
+          {penDetected && !penOnly && (
+            <span className="hidden items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 sm:flex">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Palmă ignorată
             </span>
+          )}
+
+          {toolbarExtra && (
+            <>
+              <div className="mx-1 h-7 w-px bg-ink-200" />
+              {toolbarExtra}
+            </>
           )}
         </div>
       )}
 
       <div
         ref={wrapRef}
-        className="relative w-full max-w-[860px] overflow-hidden rounded-lg border border-ink-200 bg-white shadow-lg"
+        className="relative w-full max-w-[900px] overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-[0_1px_3px_rgba(28,25,23,0.06),0_12px_32px_-12px_rgba(28,25,23,0.14)]"
         style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
       >
         <PaperBackground kind={background} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />

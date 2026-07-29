@@ -18,6 +18,7 @@ export function AppShell({ session, children }: { session: Session; children: Re
   const pathname = usePathname();
   const [online, setOnline] = useState(true);
   const [queued, setQueued] = useState(0);
+  const [menu, setMenu] = useState(false);
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -26,6 +27,8 @@ export function AppShell({ session, children }: { session: Session; children: Re
     return () => { off(); clearInterval(tick); };
   }, []);
 
+  useEffect(() => { setMenu(false); }, [pathname]);
+
   async function logout() {
     await api.post('/api/auth/logout');
     router.push('/login');
@@ -33,35 +36,74 @@ export function AppShell({ session, children }: { session: Session; children: Re
   }
 
   const home = session.role === 'PARENT' ? '/parinte' : '/panou';
+  const initials = session.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+
+  // Ecranul de scris ocupa tot spatiul: ascundem cromul inutil
+  const isCanvas = /^\/(lectie|tema)\/[^/]+$/.test(pathname);
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-30 border-b border-ink-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
-          <Link href={home} className="flex items-center gap-2 no-select">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zest-600 text-sm font-bold text-white">
+      <header className="sticky top-0 z-30 border-b border-ink-200/70 bg-paper/85 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
+          <Link href={home} className="flex items-center gap-2.5 no-select">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink-900 text-sm font-black text-zest-400">
               Z
             </span>
-            <span className="font-bold text-ink-900">ZestPad</span>
+            <span className="text-[17px] font-bold tracking-tight text-ink-900">ZestPad</span>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {(!online || queued > 0) && (
               <span className="chip bg-amber-100 text-amber-800">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                {online ? `Sincronizez ${queued}` : 'Offline'}
+                <span className="hidden sm:inline">{online ? `Sincronizez ${queued}` : 'Offline'}</span>
               </span>
             )}
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-semibold leading-tight text-ink-800">{session.name}</p>
-              <p className="text-xs leading-tight text-ink-500">{ROLE_LABEL[session.role]}</p>
+
+            <div className="relative">
+              <button
+                onClick={() => setMenu((v) => !v)}
+                className="flex items-center gap-2.5 rounded-xl py-1.5 pl-1.5 pr-2 transition hover:bg-ink-100"
+                aria-label="Meniu cont"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zest-100 text-[13px] font-bold text-zest-800">
+                  {initials}
+                </span>
+                <span className="hidden text-left sm:block">
+                  <span className="block text-[13px] font-semibold leading-tight text-ink-800">{session.name}</span>
+                  <span className="block text-[11px] leading-tight text-ink-500">{ROLE_LABEL[session.role]}</span>
+                </span>
+              </button>
+
+              {menu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setMenu(false)} />
+                  <div className="absolute right-0 z-20 mt-2 w-56 animate-fade-up overflow-hidden rounded-2xl border border-ink-200 bg-white p-1.5 shadow-lift">
+                    <div className="px-3 py-2.5 sm:hidden">
+                      <p className="text-sm font-semibold text-ink-800">{session.name}</p>
+                      <p className="text-xs text-ink-500">{ROLE_LABEL[session.role]}</p>
+                    </div>
+                    <p className="truncate px-3 py-1.5 text-xs text-ink-400">{session.email}</p>
+                    <button
+                      onClick={logout}
+                      className="mt-1 w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                    >
+                      Ieși din cont
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
-            <button onClick={logout} className="btn-ghost text-sm">Ieșire</button>
           </div>
         </div>
       </header>
 
-      <main key={pathname} className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+      <main
+        key={pathname}
+        className={isCanvas ? 'mx-auto max-w-6xl px-3 py-4' : 'mx-auto max-w-6xl px-4 py-7 sm:py-9'}
+      >
+        {children}
+      </main>
     </div>
   );
 }

@@ -30,7 +30,7 @@ export default async function TopicPage({ params }: { params: Promise<{ id: stri
     where: { topicId: id, ...(isTeacher ? {} : { published: true }) },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
     select: {
-      id: true, title: true, type: true, published: true, dueAt: true,
+      id: true, title: true, type: true, published: true, dueAt: true, liveUntil: true,
       submissions: isTeacher
         ? { select: { status: true } }
         : { where: { studentId: session.userId }, select: { id: true, status: true, grade: true } },
@@ -53,6 +53,7 @@ export default async function TopicPage({ params }: { params: Promise<{ id: stri
         type: l.type,
         published: l.published,
         dueAt: l.dueAt?.toISOString() ?? null,
+        live: !!l.liveUntil && l.liveUntil.getTime() > Date.now(),
         pendingReview: isTeacher
           ? l.submissions.filter((s) => s.status === 'SUBMITTED').length
           : 0,

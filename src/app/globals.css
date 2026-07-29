@@ -3,28 +3,51 @@
 @tailwind utilities;
 
 @layer base {
-  html { -webkit-text-size-adjust: 100%; }
-  body { @apply bg-ink-50 text-ink-900 antialiased; }
-  /* In kiosk mode nu vrem selectie accidentala de text cu stylus-ul */
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-paper text-ink-900 antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+  /* Pe tableta, selectia accidentala de text cu stylus-ul e enervanta */
   .no-select { -webkit-user-select: none; user-select: none; }
+
+  ::selection { @apply bg-zest-200 text-ink-900; }
+
+  /* Tinte de atingere confortabile pentru copii */
+  button, a, [role='button'] { touch-action: manipulation; }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold
-           transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-4 text-sm
+           font-semibold transition active:scale-[0.98]
+           disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100;
   }
-  .btn-primary { @apply btn bg-zest-600 text-white hover:bg-zest-700 active:bg-zest-800; }
-  .btn-secondary { @apply btn border border-ink-200 bg-white text-ink-700 hover:bg-ink-50; }
-  .btn-ghost { @apply btn text-ink-600 hover:bg-ink-100; }
-  .btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
+  .btn-primary  { @apply btn bg-zest-600 text-white shadow-sm hover:bg-zest-700; }
+  .btn-secondary{ @apply btn border border-ink-200 bg-white text-ink-700 shadow-sm hover:bg-ink-50; }
+  .btn-ghost    { @apply btn text-ink-600 hover:bg-ink-100; }
+  .btn-dark     { @apply btn bg-ink-900 text-white shadow-sm hover:bg-ink-800; }
+  .btn-danger   { @apply btn bg-red-600 text-white shadow-sm hover:bg-red-700; }
+  .btn-sm       { @apply min-h-[36px] px-3 text-[13px]; }
 
   .input {
-    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-ink-900
+    @apply w-full rounded-xl border border-ink-200 bg-white px-3.5 py-2.5 text-[15px] text-ink-900
            outline-none transition placeholder:text-ink-400
-           focus:border-zest-500 focus:ring-2 focus:ring-zest-100;
+           focus:border-zest-400 focus:ring-4 focus:ring-zest-100;
   }
-  .label { @apply mb-1.5 block text-sm font-medium text-ink-700; }
-  .card { @apply rounded-xl border border-ink-200 bg-white shadow-sm; }
-  .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium; }
+  .label { @apply mb-1.5 block text-[13px] font-semibold text-ink-700; }
+
+  .card { @apply rounded-2xl border border-ink-200/80 bg-white shadow-card; }
+  .card-hover { @apply card transition hover:-translate-y-0.5 hover:shadow-lift; }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1
+           text-[12px] font-semibold;
+  }
+  .section-title {
+    @apply text-[11px] font-bold uppercase tracking-[0.08em] text-ink-400;
+  }
 }

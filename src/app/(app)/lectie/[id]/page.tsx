@@ -11,7 +11,8 @@ export default async function LessonPage({ params }: { params: Promise<{ id: str
   const lesson = await prisma.lesson.findUnique({
     where: { id },
     select: {
-      id: true, title: true, type: true, content: true, published: true, dueAt: true,
+      id: true, title: true, type: true, content: true, published: true,
+      dueAt: true, liveUntil: true, updatedAt: true,
       topic: {
         select: {
           id: true, title: true, background: true,
@@ -40,7 +41,17 @@ export default async function LessonPage({ params }: { params: Promise<{ id: str
     redirect(`/tema/${sub.id}`);
   }
 
-  const submissionStats = isTeacher && lesson.type === 'HOMEWORK'
+  // Notitele proprii ale elevului peste lectia de teorie.
+  let myNotes = '';
+  if (!isTeacher) {
+    const note = await prisma.lessonNote.findUnique({
+      where: { lessonId_studentId: { lessonId: id, studentId: session.userId } },
+      select: { content: true },
+    });
+    myNotes = note?.content ?? '';
+  }
+
+  const stats = isTeacher && lesson.type === 'HOMEWORK'
     ? await prisma.submission.groupBy({ by: ['status'], where: { lessonId: id }, _count: true })
     : [];
 
@@ -53,16 +64,19 @@ export default async function LessonPage({ params }: { params: Promise<{ id: str
         content: lesson.content,
         published: lesson.published,
         dueAt: lesson.dueAt?.toISOString() ?? null,
+        liveUntil: lesson.liveUntil?.toISOString() ?? null,
+        version: lesson.updatedAt.getTime(),
         topicId: lesson.topic.id,
         topicTitle: lesson.topic.title,
         background: lesson.topic.background,
         className: lesson.topic.class.name,
         isTeacher,
       }}
+      myNotes={myNotes}
       stats={{
-        submitted: submissionStats.find((s) => s.status === 'SUBMITTED')?._count ?? 0,
-        graded: submissionStats.find((s) => s.status === 'GRADED')?._count ?? 0,
-        total: submissionStats.reduce((a, s) => a + s._count, 0),
+        submitted: stats.find((s) => s.status === 'SUBMITTED')?._count ?? 0,
+        graded: stats.find((s) => s.status === 'GRADED')?._count ?? 0,
+        total: stats.reduce((a, s) => a + s._count, 0),
       }}
     />
   );

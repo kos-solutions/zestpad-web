@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api';
 import { EmptyState, ErrorBanner, Modal, Spinner } from './ui';
 import { BACKGROUND_LABELS, type BackgroundKind } from './PaperBackground';
+import { useAutoRefresh } from '@/lib/live';
 
 interface Topic { id: string; title: string; background: BackgroundKind; lessonCount: number }
 interface Props {
@@ -15,20 +16,24 @@ interface Props {
   };
 }
 
+/** Miniatura liniaturii, ca sa se vada dintr-o privire ce fel de foaie e. */
 const BG_PREVIEW: Record<BackgroundKind, string> = {
   WHITE: 'bg-white',
-  MATH: 'bg-[linear-gradient(#c7d7ea_1px,transparent_1px),linear-gradient(90deg,#c7d7ea_1px,transparent_1px)] bg-[length:8px_8px]',
-  DICTANDO: 'bg-[linear-gradient(#bcd0e8_1px,transparent_1px)] bg-[length:100%_8px]',
-  MUSIC: 'bg-[linear-gradient(#9fb4cc_1px,transparent_1px)] bg-[length:100%_4px]',
+  MATH: 'bg-white bg-[linear-gradient(#c7d7ea_1px,transparent_1px),linear-gradient(90deg,#c7d7ea_1px,transparent_1px)] bg-[length:7px_7px]',
+  DICTANDO: 'bg-white bg-[linear-gradient(#bcd0e8_1px,transparent_1px)] bg-[length:100%_7px]',
+  MUSIC: 'bg-white bg-[linear-gradient(#9fb4cc_1px,transparent_1px)] bg-[length:100%_4px]',
 };
 
 export function ClassView({ cls }: Props) {
   const router = useRouter();
+  useAutoRefresh(12000);
+
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [background, setBackground] = useState<BackgroundKind>('WHITE');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -43,13 +48,16 @@ export function ClassView({ cls }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <div>
-        <Link href="/panou" className="text-sm text-ink-500 hover:text-ink-800">← Panou</Link>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <Link href="/panou"
+          className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-500 transition hover:text-ink-900">
+          <span aria-hidden>←</span> Panou
+        </Link>
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-ink-900">{cls.name}</h1>
-            <p className="text-sm text-ink-500">
+            <h1 className="text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl">{cls.name}</h1>
+            <p className="mt-1 text-[15px] text-ink-500">
               {cls.isTeacher
                 ? `${cls.students.length} ${cls.students.length === 1 ? 'elev înscris' : 'elevi înscriși'}`
                 : cls.teacherName}
@@ -57,13 +65,19 @@ export function ClassView({ cls }: Props) {
           </div>
           <div className="flex items-center gap-2">
             {cls.code && (
-              <span className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 font-mono text-sm font-bold tracking-wider text-amber-800">
-                {cls.code}
-              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(cls.code!).then(() => {
+                    setCopied(true); setTimeout(() => setCopied(false), 1800);
+                  }).catch(() => {});
+                }}
+                className="rounded-xl border border-ink-200 bg-white px-3.5 py-2.5 font-mono text-sm font-bold tracking-wider text-ink-800 shadow-sm transition hover:bg-ink-50"
+                title="Copiază codul de înscriere"
+              >
+                {copied ? 'Copiat' : cls.code}
+              </button>
             )}
-            {cls.isTeacher && (
-              <button onClick={() => setOpen(true)} className="btn-primary">+ Capitol</button>
-            )}
+            {cls.isTeacher && <button onClick={() => setOpen(true)} className="btn-primary">Capitol nou</button>}
           </div>
         </div>
       </div>
@@ -72,8 +86,8 @@ export function ClassView({ cls }: Props) {
         <EmptyState
           title="Niciun capitol încă"
           hint={cls.isTeacher
-            ? 'Capitolele sunt dosarele materiei. Alegi tipul de liniatură o singură dată, iar toate lecțiile din capitol îl moștenesc.'
-            : 'Profesorul nu a adăugat încă niciun capitol.'}
+            ? 'Capitolul e dosarul materiei. Alegi liniatura o dată, iar toate lecțiile din el o moștenesc.'
+            : 'Profesorul nu a adăugat încă nimic aici.'}
           action={cls.isTeacher
             ? <button onClick={() => setOpen(true)} className="btn-primary">Creează primul capitol</button>
             : undefined}
@@ -81,54 +95,54 @@ export function ClassView({ cls }: Props) {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cls.topics.map((t) => (
-            <Link key={t.id} href={`/capitol/${t.id}`} className="card group overflow-hidden p-5 transition hover:shadow-md">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <h3 className="font-bold text-ink-900 group-hover:text-zest-700">{t.title}</h3>
-                <span
-                  className={`h-9 w-7 shrink-0 rounded border border-ink-200 ${BG_PREVIEW[t.background]}`}
-                  title={BACKGROUND_LABELS[t.background]}
-                />
+            <Link key={t.id} href={`/capitol/${t.id}`} className="card-hover group flex items-start gap-4 p-5">
+              <span className={`h-14 w-11 shrink-0 rounded-lg border border-ink-200 shadow-sm ${BG_PREVIEW[t.background]}`} />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[16px] font-bold leading-snug text-ink-900 transition group-hover:text-zest-700">
+                  {t.title}
+                </h3>
+                <p className="mt-1.5 text-[13px] text-ink-500">
+                  {t.lessonCount} {t.lessonCount === 1 ? 'lecție' : 'lecții'}
+                </p>
+                <p className="mt-0.5 text-[12px] text-ink-400">{BACKGROUND_LABELS[t.background]}</p>
               </div>
-              <p className="text-xs text-ink-500">
-                {t.lessonCount} {t.lessonCount === 1 ? 'lecție' : 'lecții'} · {BACKGROUND_LABELS[t.background]}
-              </p>
             </Link>
           ))}
         </div>
       )}
 
       {cls.isTeacher && cls.students.length > 0 && (
-        <section className="card p-5">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ink-500">Elevi</h2>
+        <section>
+          <h2 className="section-title mb-3">Elevi</h2>
           <div className="flex flex-wrap gap-2">
             {cls.students.map((s) => (
-              <span key={s.id} className="chip bg-ink-100 text-ink-700">{s.name}</span>
+              <span key={s.id} className="chip bg-white text-ink-700 ring-1 ring-ink-200">{s.name}</span>
             ))}
           </div>
         </section>
       )}
 
-      <Modal open={open} title="Capitol nou" onClose={() => setOpen(false)}>
-        <form onSubmit={create} className="space-y-4">
+      <Modal open={open} title="Capitol nou"
+        description="Liniatura se aplică tuturor lecțiilor din capitol."
+        onClose={() => setOpen(false)}>
+        <form onSubmit={create} className="space-y-5">
           {error && <ErrorBanner message={error} />}
           <div>
             <label className="label" htmlFor="ttitle">Titlu</label>
-            <input
-              id="ttitle" className="input" autoFocus required value={title}
-              onChange={(e) => setTitle(e.target.value)} placeholder="ex: Capitolul 1 — Ecuații"
-            />
+            <input id="ttitle" className="input" autoFocus required value={title}
+              onChange={(e) => setTitle(e.target.value)} placeholder="Capitolul 1 — Ecuații" />
           </div>
           <div>
             <span className="label">Tipul de foaie</span>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               {(Object.keys(BACKGROUND_LABELS) as BackgroundKind[]).map((bg) => (
-                <button
-                  key={bg} type="button" onClick={() => setBackground(bg)}
-                  className={`flex items-center gap-2 rounded-lg border-2 px-3 py-2 text-sm transition ${
-                    background === bg ? 'border-zest-500 bg-zest-50 font-semibold' : 'border-ink-200 hover:bg-ink-50'
-                  }`}
-                >
-                  <span className={`h-6 w-5 rounded border border-ink-300 ${BG_PREVIEW[bg]}`} />
+                <button key={bg} type="button" onClick={() => setBackground(bg)}
+                  className={`flex items-center gap-3 rounded-xl border-2 p-3 text-left text-sm transition ${
+                    background === bg
+                      ? 'border-zest-500 bg-zest-50 font-semibold text-zest-900'
+                      : 'border-ink-200 hover:border-ink-300 hover:bg-ink-50'
+                  }`}>
+                  <span className={`h-10 w-8 shrink-0 rounded border border-ink-300 ${BG_PREVIEW[bg]}`} />
                   {BACKGROUND_LABELS[bg]}
                 </button>
               ))}

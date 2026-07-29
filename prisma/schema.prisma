@@ -52,6 +52,7 @@ model User {
   // Elev
   enrollments Enrollment[]
   submissions Submission[] @relation("SubmissionStudent")
+  lessonNotes LessonNote[] @relation("NoteAuthor")
   notebooks   Notebook[]
 
   // Parinte <-> copil
@@ -128,6 +129,8 @@ model Lesson {
   content   String     @default("")
   dueAt     DateTime?
   published Boolean    @default(false)
+  /// Cat timp profesorul preda live. Elevii verifica actualizari doar in acest interval.
+  liveUntil DateTime?
   position  Int        @default(0)
   topic     Topic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
   topicId   String
@@ -135,6 +138,7 @@ model Lesson {
   updatedAt DateTime   @updatedAt
 
   submissions Submission[]
+  notes       LessonNote[]
 
   @@index([topicId])
 }
@@ -164,6 +168,22 @@ model Submission {
   @@unique([lessonId, studentId])
   @@index([studentId])
   @@index([status])
+}
+
+/// Notitele proprii ale elevului peste o lectie de teorie.
+/// Profesorul nu le vede; sunt caietul copilului, nu o lucrare.
+model LessonNote {
+  id        String   @id @default(cuid())
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId  String
+  student   User     @relation("NoteAuthor", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  content   String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([lessonId, studentId])
+  @@index([studentId])
 }
 
 /// Caiet personal al elevului. Nu e vizibil profesorului.
