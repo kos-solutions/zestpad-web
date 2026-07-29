@@ -92,3 +92,50 @@ simultane apar erori `too many connections`.
 
 Dacă tot apar la scară mai mare: mută baza pe Neon (are pooler inclus) sau
 pune PgBouncer în fața Railway.
+
+---
+
+## Incident, 29 iulie 2026: serviciul vechi de pe Railway
+
+**Simptom.** Notificări de crash de la Vercel și Railway. Site-ul funcționa
+normal, dar deploy-urile noi eșuau cu `Error: P3009`.
+
+**Cauză.** Proiectul Railway `zestpad-backend` are două servicii: `Postgres`
+și `zestpad-backend` (aplicația NestJS veche). După consolidarea în Next.js,
+serviciul NestJS a rămas pornit. Comanda lui de start era:
+
+```
+npx prisma migrate deploy && node dist/main.js
+```
+
+La fiecare restart încerca să aplice vechea lui migrare
+`20260109142419_add_background_to_topic` peste schema nouă. Eșua, dar lăsa în
+`_prisma_migrations` o înregistrare de migrare eșuată. Prisma refuză să aplice
+orice migrare nouă cât timp există una eșuată — deci build-urile Vercel se
+blocau, la nesfârșit.
+
+Două servicii se băteau pe aceeași bază de date: exact problema pe care
+consolidarea trebuia s-o elimine.
+
+**Rezolvare.**
+
+1. Oprit serviciul vechi (`railway down --service zestpad-backend`).
+2. Șters înregistrarea străină din `_prisma_migrations`.
+3. Redeploy.
+
+Ordinea contează: dacă ștergi înregistrarea înainte de a opri serviciul, o
+pune la loc în câteva secunde.
+
+**De ce nu se mai poate repeta.** Repo-ul `zestpad-backend` e arhivat, deci nu
+mai poate declanșa deploy-uri automate. Serviciul Railway nu mai are deployment
+activ. Dacă totuși cineva îl repornește manual, problema reapare — în acel caz,
+oprește-l din nou și rulează:
+
+```bash
+node fix-migrations.mjs          # arata starea
+node fix-migrations.mjs --fix    # sterge inregistrarile straine
+```
+
+**Ce merită făcut la un moment dat.** Mută baza de date într-un proiect Railway
+separat, ca să nu mai stea lângă un serviciu de aplicație dezafectat. Sau mut-o
+pe Neon, care are pooler inclus și rezolvă și problema de conexiuni.
