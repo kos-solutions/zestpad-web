@@ -356,6 +356,48 @@ check('nelogat NU poate cere delta', r.status === 401, `primit ${r.status}`);
 
 await teacher('DELETE', `/api/lessons/${dId}`);
 
+
+console.log('\n=== 12. Prezenta efemera ===');
+r = await teacher('POST', '/api/lessons', { topicId, title: 'Prezenta test', type: 'THEORY' });
+const pId = r.data.lesson.id;
+
+r = await teacher('GET', `/api/lessons/${pId}/presence`);
+check('inainte de predare nimeni nu urmareste', r.status === 200 && r.data.watching?.length === 0);
+check('stie cati elevi sunt inscrisi', r.data.enrolled === 2, `enrolled=${r.data.enrolled}`);
+
+await teacher('POST', `/api/lessons/${pId}/live`, { live: true });
+
+// elevul interogheaza versiunea: asta il marcheaza prezent, fara cerere separata
+await student('GET', `/api/lessons/${pId}/version`);
+r = await teacher('GET', `/api/lessons/${pId}/presence`);
+check('elevul apare dupa ce interogheaza versiunea', r.data.watching?.length === 1,
+  `${r.data.watching?.length} conectati`);
+check('apare cu numele', r.data.watching?.[0]?.name === 'Andrei Elev', JSON.stringify(r.data.watching));
+
+await student2('GET', `/api/lessons/${pId}/version`);
+r = await teacher('GET', `/api/lessons/${pId}/presence`);
+check('al doilea elev apare si el', r.data.watching?.length === 2);
+
+r = await student('GET', `/api/lessons/${pId}/presence`);
+check('elevul NU poate vedea cine urmareste', r.status === 403, `primit ${r.status}`);
+
+r = await parent('GET', `/api/lessons/${pId}/presence`);
+check('parintele NU poate vedea cine urmareste', r.status === 403 || r.status === 404, `primit ${r.status}`);
+
+// oprirea predarii sterge prezenta: nu ramane istoric
+await teacher('POST', `/api/lessons/${pId}/live`, { live: false });
+r = await teacher('GET', `/api/lessons/${pId}/presence`);
+check('oprirea predarii sterge prezenta', r.data.watching?.length === 0,
+  `${r.data.watching?.length} ramasi`);
+
+// in afara predarii nu se mai inregistreaza nimic
+await student('GET', `/api/lessons/${pId}/version`);
+r = await teacher('GET', `/api/lessons/${pId}/presence`);
+check('in afara orei nu se inregistreaza prezenta', r.data.watching?.length === 0,
+  `${r.data.watching?.length} inregistrati`);
+
+await teacher('DELETE', `/api/lessons/${pId}`);
+
 console.log(`\n${'='.repeat(50)}`);
 console.log(`REZULTAT: ${pass} trecute, ${fail} esuate`);
 console.log('='.repeat(50));

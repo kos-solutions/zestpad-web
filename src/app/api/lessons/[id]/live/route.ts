@@ -31,6 +31,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       select: { id: true, liveUntil: true, published: true },
     });
 
+    // La oprirea predarii stergem prezenta. Nu pastram cine a fost conectat:
+    // ar fi un catalog, iar masuratoarea nu e destul de sigura pentru asa ceva.
+    await prisma.lessonPresence.deleteMany({ where: { lessonId: id } });
+
     return NextResponse.json({
       live: !!lesson.liveUntil && lesson.liveUntil.getTime() > Date.now(),
       liveUntil: lesson.liveUntil,

@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ZestCanvas, type ZestCanvasHandle } from './ZestCanvas';
-import { SaveIndicator, ErrorBanner, Spinner, LiveBadge } from './ui';
+import { SaveIndicator, ErrorBanner, Spinner, LiveBadge, PresencePanel } from './ui';
 import { api, ApiError, saveContent, type SaveState } from '@/lib/api';
 import { loadDraft } from '@/lib/offline';
-import { useLessonLive } from '@/lib/live';
+import { useLessonLive, usePresence } from '@/lib/live';
 import { appendStrokes, drawingFromStrokes } from '@/lib/deltas';
 import { parseDrawing, type Stroke } from '@/lib/strokes';
 import type { BackgroundKind } from './PaperBackground';
@@ -54,6 +54,7 @@ export function LessonView({ lesson, myNotes, stats }: Props) {
   const syncingRef = useRef(false);
 
   const liveState = useLessonLive(lesson.id, !isTeacher);
+  const presence = usePresence(lesson.id, isTeacher && live);
 
   /**
    * Aduce doar traseele noi, nu toata lectia.
@@ -208,15 +209,18 @@ export function LessonView({ lesson, myNotes, stats }: Props) {
 
       {/* ---- benzi de context ---- */}
       {isTeacher && live && (
-        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <span className="relative flex h-2.5 w-2.5 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-          </span>
-          <p className="text-sm text-red-900">
-            <span className="font-semibold">Predai în direct.</span>{' '}
-            Elevii văd ce scrii în una-două secunde. Se oprește singur după o oră.
-          </p>
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+            </span>
+            <p className="text-sm text-red-900">
+              <span className="font-semibold">Predai în direct.</span>{' '}
+              Elevii văd ce scrii în una-două secunde. Se oprește singur după o oră.
+            </p>
+          </div>
+          <PresencePanel watching={presence.watching} enrolled={presence.enrolled} />
         </div>
       )}
 
@@ -233,6 +237,7 @@ export function LessonView({ lesson, myNotes, stats }: Props) {
           <p className="text-sm text-ink-600">
             Scrisul profesorului e dedesubt, gri. Ce scrii tu rămâne al tău —
             profesorul nu îți vede notițele.
+            {liveState.live && ' Cât ține ora, profesorul vede că ești conectat.'}
           </p>
           {liveState.live && (
             following ? (

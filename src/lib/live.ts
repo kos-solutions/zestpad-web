@@ -127,3 +127,41 @@ export function useAutoRefresh(intervalMs = 12000, enabled = true) {
 
   return refresh;
 }
+
+
+/**
+ * Cine urmareste lectia acum. Doar pentru profesor, doar cat preda.
+ *
+ * Nu exista varianta "cine a lipsit": nu se stocheaza istoric, iar semnalul
+ * e prea nesigur ca sa poata fi folosit drept catalog.
+ */
+export interface Watcher { id: string; name: string }
+
+export function usePresence(lessonId: string, enabled: boolean) {
+  const [watching, setWatching] = useState<Watcher[]>([]);
+  const [enrolled, setEnrolled] = useState(0);
+
+  useEffect(() => {
+    if (!enabled) { setWatching([]); return; }
+    let stopped = false;
+
+    const tick = async () => {
+      if (stopped) return;
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        try {
+          const res = await fetch(`/api/lessons/${lessonId}/presence`, { cache: 'no-store' });
+          if (res.ok) {
+            const d = (await res.json()) as { watching: Watcher[]; enrolled: number };
+            if (!stopped) { setWatching(d.watching); setEnrolled(d.enrolled); }
+          }
+        } catch { /* reincercam */ }
+      }
+    };
+
+    void tick();
+    const id = setInterval(tick, 5000);
+    return () => { stopped = true; clearInterval(id); };
+  }, [lessonId, enabled]);
+
+  return { watching, enrolled };
+}

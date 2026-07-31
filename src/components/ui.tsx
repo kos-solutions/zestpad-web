@@ -149,3 +149,64 @@ export function Progress({ value, total, tone = 'zest' }: { value: number; total
     </div>
   );
 }
+
+
+/**
+ * Cine urmareste lectia acum.
+ *
+ * Arata starea momentului, nu un istoric — si spune asta explicit, ca sa nu
+ * fie confundat cu un catalog de prezenta.
+ */
+export function PresencePanel({
+  watching, enrolled,
+}: { watching: { id: string; name: string }[]; enrolled: number }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-xl border border-ink-200 bg-white">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <span className="flex items-center gap-2.5">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          <span className="text-sm font-semibold text-ink-900">
+            {watching.length === 0
+              ? 'Nimeni conectat momentan'
+              : `${watching.length} ${watching.length === 1 ? 'elev urmărește' : 'elevi urmăresc'} acum`}
+          </span>
+          {enrolled > 0 && (
+            <span className="text-[13px] text-ink-500">din {enrolled} înscriși</span>
+          )}
+        </span>
+        <span className="text-[13px] font-medium text-ink-500">{open ? 'Ascunde' : 'Vezi cine'}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-ink-100 px-4 py-3">
+          {watching.length === 0 ? (
+            <p className="text-[13px] text-ink-500">
+              Niciun elev nu are lecția deschisă în acest moment.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {watching.map((w) => (
+                <span key={w.id} className="chip bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200">
+                  {w.name}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="mt-3 text-[11px] leading-relaxed text-ink-400">
+            Doar starea momentului. Nu se păstrează istoric și nu e catalog de
+            prezență — ecranul blocat câteva secunde sau un wifi slab scot
+            elevul din listă, iar o tabletă lăsată deschisă îl țin în ea.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

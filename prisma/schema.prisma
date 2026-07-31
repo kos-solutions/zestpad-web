@@ -53,6 +53,7 @@ model User {
   enrollments Enrollment[]
   submissions Submission[] @relation("SubmissionStudent")
   lessonNotes LessonNote[] @relation("NoteAuthor")
+  presence    LessonPresence[] @relation("PresenceStudent")
   notebooks   Notebook[]
 
   // Parinte <-> copil
@@ -142,6 +143,7 @@ model Lesson {
 
   submissions Submission[]
   notes       LessonNote[]
+  presence    LessonPresence[]
 
   @@index([topicId])
 }
@@ -171,6 +173,26 @@ model Submission {
   @@unique([lessonId, studentId])
   @@index([studentId])
   @@index([status])
+}
+
+/// Cine urmareste lectia chiar acum.
+///
+/// Deliberat efemer: randurile se sterg cand profesorul opreste predarea si
+/// sunt curatate automat dupa cateva zeci de secunde de inactivitate.
+/// NU e un catalog de prezenta si nu trebuie sa devina unul: masuratoarea e
+/// nesigura in ambele sensuri (ecran blocat = fals absent, tableta lasata
+/// deschisa = fals prezent), iar un istoric ar insemna date despre minori
+/// pastrate fara un motiv suficient de bun.
+model LessonPresence {
+  id         String   @id @default(cuid())
+  lesson     Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId   String
+  student    User     @relation("PresenceStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId  String
+  lastSeenAt DateTime @default(now())
+
+  @@unique([lessonId, studentId])
+  @@index([lastSeenAt])
 }
 
 /// Notitele proprii ale elevului peste o lectie de teorie.
