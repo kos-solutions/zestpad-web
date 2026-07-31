@@ -23,12 +23,14 @@ const IDLE_MS = 60000;  // dupa multe verificari fara schimbare
 export interface LiveState {
   version: number | null;
   live: boolean;
+  /** cate trasee are lectia pe server */
+  strokes: number;
   /** creste de fiecare data cand serverul raporteaza continut nou */
   changeCount: number;
 }
 
 export function useLessonLive(lessonId: string, enabled = true): LiveState {
-  const [state, setState] = useState<LiveState>({ version: null, live: false, changeCount: 0 });
+  const [state, setState] = useState<LiveState>({ version: null, live: false, strokes: 0, changeCount: 0 });
   const versionRef = useRef<number | null>(null);
   const unchangedRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -46,7 +48,7 @@ export function useLessonLive(lessonId: string, enabled = true): LiveState {
         if (document.visibilityState === 'visible' && navigator.onLine) {
           const res = await fetch(`/api/lessons/${lessonId}/version`, { cache: 'no-store' });
           if (res.ok) {
-            const d = (await res.json()) as { v: number; live: boolean };
+            const d = (await res.json()) as { v: number; n: number; live: boolean };
             const changed = versionRef.current !== null && d.v !== versionRef.current;
             versionRef.current = d.v;
 
@@ -56,6 +58,7 @@ export function useLessonLive(lessonId: string, enabled = true): LiveState {
             setState((prev) => ({
               version: d.v,
               live: d.live,
+              strokes: d.n,
               changeCount: changed ? prev.changeCount + 1 : prev.changeCount,
             }));
 

@@ -312,6 +312,50 @@ const anon2 = makeClient();
 r = await anon2('GET', `/api/lessons/${liveLessonId}/version`);
 check('nelogat NU poate interoga versiunea', r.status === 401, `primit ${r.status}`);
 
+
+console.log('\n=== 11. Sincronizare incrementala ===');
+r = await teacher('POST', '/api/lessons', { topicId, title: 'Delta test', type: 'THEORY' });
+const dId = r.data.lesson.id;
+await teacher('POST', `/api/lessons/${dId}/live`, { live: true });
+
+await teacher('PATCH', `/api/lessons/${dId}/content`, { content: drawing(10) });
+r = await student('GET', `/api/lessons/${dId}/version`);
+check('versiunea raporteaza numarul de trasee', r.data.n === 10, `n=${r.data.n}`);
+
+r = await student('GET', `/api/lessons/${dId}/delta?since=0`);
+check('delta de la zero da tot', r.data.strokes?.length === 10 && r.data.total === 10);
+
+await teacher('PATCH', `/api/lessons/${dId}/content`, { content: drawing(25) });
+r = await student('GET', `/api/lessons/${dId}/delta?since=10`);
+check('delta da doar traseele noi', r.data.strokes?.length === 15, `primit ${r.data.strokes?.length}`);
+check('delta nu cere reincarcare', r.data.reset === false);
+check('delta raporteaza totalul corect', r.data.total === 25);
+
+// masuram economia reala
+const fullSize = JSON.stringify((await student('GET', `/api/lessons/${dId}`)).data).length;
+const deltaSize = JSON.stringify((await student('GET', `/api/lessons/${dId}/delta?since=10`)).data).length;
+check('delta e semnificativ mai mic decat lectia intreaga', deltaSize < fullSize * 0.7,
+  `delta ${deltaSize} vs intreg ${fullSize}`);
+console.log(`       delta ${deltaSize} octeti vs lectie intreaga ${fullSize} octeti`);
+
+r = await student('GET', `/api/lessons/${dId}/delta?since=25`);
+check('fara schimbari, delta e gol', r.data.strokes?.length === 0);
+
+// profesorul sterge: numarul scade sub ce are elevul
+await teacher('PATCH', `/api/lessons/${dId}/content`, { content: drawing(5) });
+r = await student('GET', `/api/lessons/${dId}/delta?since=25`);
+check('la stergere se cere reincarcare completa', r.data.reset === true, `reset=${r.data.reset}`);
+check('reincarcarea da continutul curent', r.data.strokes?.length === 5);
+
+r = await student2('GET', `/api/lessons/${dId}/delta?since=0`);
+check('alt elev inscris poate cere delta', r.status === 200);
+
+const anon3 = makeClient();
+r = await anon3('GET', `/api/lessons/${dId}/delta?since=0`);
+check('nelogat NU poate cere delta', r.status === 401, `primit ${r.status}`);
+
+await teacher('DELETE', `/api/lessons/${dId}`);
+
 console.log(`\n${'='.repeat(50)}`);
 console.log(`REZULTAT: ${pass} trecute, ${fail} esuate`);
 console.log('='.repeat(50));

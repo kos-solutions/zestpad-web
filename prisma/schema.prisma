@@ -131,6 +131,9 @@ model Lesson {
   published Boolean    @default(false)
   /// Cat timp profesorul preda live. Elevii verifica actualizari doar in acest interval.
   liveUntil DateTime?
+  /// Numarul de trasee din content. Tinut separat ca sa nu parsam JSON-ul
+  /// la fiecare verificare de versiune si ca sa stim ce ii lipseste unui elev.
+  strokeCount Int @default(0)
   position  Int        @default(0)
   topic     Topic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
   topicId   String

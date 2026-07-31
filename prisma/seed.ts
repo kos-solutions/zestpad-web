@@ -13,6 +13,10 @@ function stroke(id: string, pts: [number, number, number][], color = '#1a1a1a', 
   return { id, color, size, points: pts };
 }
 
+function strokeCountOf(raw: string): number {
+  try { return JSON.parse(raw).strokes?.length ?? 0; } catch { return 0; }
+}
+
 function demoDrawing(seed: number, color = '#1a1a1a') {
   const strokes = [];
   for (let i = 0; i < 6; i++) {
@@ -66,14 +70,16 @@ async function main() {
   const lectie = await prisma.lesson.create({
     data: {
       title: 'Ecuații de gradul I', type: 'THEORY', topicId: algebra.id,
-      content: demoDrawing(1), published: true, position: 0,
+      content: demoDrawing(1), strokeCount: strokeCountOf(demoDrawing(1)),
+      published: true, position: 0,
     },
   });
 
   const tema = await prisma.lesson.create({
     data: {
       title: 'Temă — 10 exerciții', type: 'HOMEWORK', topicId: algebra.id,
-      content: demoDrawing(2), published: true, position: 1,
+      content: demoDrawing(2), strokeCount: strokeCountOf(demoDrawing(2)),
+      published: true, position: 1,
       dueAt: new Date(Date.now() + 5 * 864e5),
     },
   });

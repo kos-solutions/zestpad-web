@@ -8,6 +8,8 @@ import { SaveIndicator, ErrorBanner, Spinner, LiveBadge } from './ui';
 import { api, ApiError, saveContent, type SaveState } from '@/lib/api';
 import { loadDraft } from '@/lib/offline';
 import { useLessonLive } from '@/lib/live';
+import { appendStrokes, drawingFromStrokes } from '@/lib/deltas';
+import { parseDrawing, type Stroke } from '@/lib/strokes';
 import type { BackgroundKind } from './PaperBackground';
 
 interface Props {
@@ -43,38 +45,54 @@ export function LessonView({ lesson, myNotes, stats }: Props) {
   const initial = isTeacher ? lesson.content : myNotes;
   const [content, setContent] = useState(initial);
 
-  // ---- continutul profesorului, actualizat live pe tableta elevului ----
+  // ---- continutul profesorului, actualizat incremental pe tableta elevului ----
   const [teacherContent, setTeacherContent] = useState(lesson.content);
   const [following, setFollowing] = useState(true);
   const [pendingUpdate, setPendingUpdate] = useState(false);
+  // Cate trasee avem deja local. Cerem serverului doar ce lipseste.
+  const haveRef = useRef(parseDrawing(lesson.content).strokes.length);
+  const syncingRef = useRef(false);
 
   const liveState = useLessonLive(lesson.id, !isTeacher);
 
-  // Cand serverul raporteaza continut nou, il aducem — dar il aplicam pe tabla
-  // doar daca elevul urmareste. Altfel i s-ar schimba pagina sub mana.
+  /**
+   * Aduce doar traseele noi, nu toata lectia.
+   *
+   * Fara asta, un elev descarca lectia intreaga la fiecare schimbare; masurat,
+   * asta inseamna sute de MB pe ora per elev, fiindca lectia creste continuu.
+   */
+  const syncDelta = useCallback(async (apply: boolean) => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    try {
+      const d = await api.get<{ reset: boolean; strokes: Stroke[]; total: number }>(
+        `/api/lessons/${lesson.id}/delta?since=${haveRef.current}`
+      );
+      if (d.strokes.length === 0 && !d.reset) { haveRef.current = d.total; return; }
+
+      setTeacherContent((prev) => {
+        const base = d.reset ? { v: 1 as const, width: 1240, height: 1754, strokes: [] } : parseDrawing(prev);
+        const merged = appendStrokes(base, d.strokes);
+        return drawingFromStrokes(merged.strokes);
+      });
+      haveRef.current = d.total;
+      if (apply) setPendingUpdate(false);
+    } catch { /* reincercam la urmatoarea schimbare */ }
+    finally { syncingRef.current = false; }
+  }, [lesson.id]);
+
   useEffect(() => {
     if (isTeacher || liveState.changeCount === 0) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const d = await api.get<{ lesson: { content: string } }>(`/api/lessons/${lesson.id}`);
-        if (cancelled) return;
-        if (following) setTeacherContent(d.lesson.content);
-        else setPendingUpdate(true);
-      } catch { /* reincercam la urmatoarea schimbare */ }
-    })();
-    return () => { cancelled = true; };
-  }, [liveState.changeCount, isTeacher, lesson.id, following]);
+    // Daca elevul nu urmareste, doar il anuntam; nu-i schimbam pagina sub mana.
+    if (!following) { setPendingUpdate(true); return; }
+    void syncDelta(true);
+  }, [liveState.changeCount, isTeacher, following, syncDelta]);
 
-  // Cand elevul reia urmarirea, sincronizam imediat.
   const resumeFollowing = useCallback(async () => {
     setFollowing(true);
     setPendingUpdate(false);
-    try {
-      const d = await api.get<{ lesson: { content: string } }>(`/api/lessons/${lesson.id}`);
-      setTeacherContent(d.lesson.content);
-    } catch { /* ignoram */ }
-  }, [lesson.id]);
+    await syncDelta(true);
+  }, [syncDelta]);
 
   // Ciorna locala mai noua (scrisa offline) are prioritate.
   useEffect(() => {
